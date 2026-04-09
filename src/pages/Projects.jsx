@@ -7,6 +7,7 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { formatShortDate } from '../utils/dates'
 import { taskStats, blockerCount } from '../utils/projectStats'
+import { currentPhaseName, projectExecutionStats } from '../utils/deriveStats'
 
 export function Projects() {
   const { projects, activeProjectId, setActiveProjectId, updateProject, addProject, removeProject, archiveProject } = useAppState()
@@ -37,6 +38,7 @@ export function Projects() {
         {visible.map((p) => {
           const { completed, total } = taskStats(p)
           const bc = blockerCount(p)
+          const exec = projectExecutionStats(p)
           return (
             <div
               key={p.id}
@@ -61,9 +63,22 @@ export function Projects() {
                     {p.type}
                   </span>
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                  Target {formatShortDate(p.targetDate)} · {completed}/{total} tasks
-                  {bc ? ` · ${bc} open blocker${bc > 1 ? 's' : ''}` : ''}
+                <div className="project-card-stats muted small">
+                  <div>
+                    Phase: <strong className="text-bright">{currentPhaseName(p)}</strong>
+                  </div>
+                  <div>
+                    Progress <strong className="text-bright">{p.progressPercent}%</strong> · Goals {exec.totalGoals} · Tasks {completed}/{total}
+                  </div>
+                  <div>
+                    Target {formatShortDate(p.targetDate)}
+                    {bc > 0 && (
+                      <span className="project-card-risk">
+                        {' '}
+                        · {bc} blocker{bc > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <button type="button" className="lpms-btn sm primary" onClick={() => setActiveProjectId(p.id)}>

@@ -1,217 +1,521 @@
 import { createId } from './model'
+import { SCHEMA_VERSION } from './constants'
 
-function phase(name, order, isCurrent, completed = false) {
-  return {
-    id: createId('ph'),
-    name,
-    order,
-    isCurrent,
-    completed,
-  }
+/** @param {string} name @param {number} order @param {'Not Started'|'In Progress'|'Complete'} status */
+function ph(name, order, status, description = '') {
+  return { id: createId('ph'), name, description, order, status }
 }
 
-function goal(title, status, progressPercent, targetDate, phaseId = null) {
+function goal(title, fields = {}) {
   return {
     id: createId('g'),
     title,
-    status,
-    progressPercent,
-    targetDate: targetDate || '',
-    phaseId,
+    description: fields.description ?? '',
+    status: fields.status ?? 'In Progress',
+    priority: fields.priority ?? 'Medium',
+    phaseId: fields.phaseId ?? null,
+    startDate: fields.startDate ?? '',
+    targetDate: fields.targetDate ?? '',
+    tags: fields.tags ?? [],
   }
 }
 
-function task(title, opts = {}) {
+function task(title, goalId, fields = {}) {
   return {
     id: createId('t'),
+    goalId,
+    phaseId: fields.phaseId ?? null,
     title,
-    description: opts.description || '',
-    dueDate: opts.dueDate || '',
-    status: opts.status || 'In Progress',
-    priority: opts.priority || 'Medium',
-    isNextAction: !!opts.isNextAction,
-    phaseId: opts.phaseId ?? null,
-    completed: !!opts.completed,
+    description: fields.description ?? '',
+    status: fields.status ?? 'In Progress',
+    priority: fields.priority ?? 'Medium',
+    dueDate: fields.dueDate ?? '',
+    completed: !!fields.completed,
+    completedAt: fields.completed ? new Date().toISOString() : '',
+    isNextAction: !!fields.isNextAction,
+    order: fields.order ?? 0,
   }
 }
 
-function milestone(title, dueDate, status, phaseId = null, notes = '') {
+function milestone(title, goalId, fields = {}) {
   return {
     id: createId('m'),
+    goalId,
+    phaseId: fields.phaseId ?? null,
     title,
-    dueDate: dueDate || '',
-    status,
-    phaseId,
-    notes,
+    description: fields.description ?? '',
+    status: fields.status ?? 'Not Started',
+    dueDate: fields.dueDate ?? '',
   }
 }
 
-function blocker(title, severity, owner, resolved = false) {
+function note(title, goalId, body) {
+  const now = new Date().toISOString()
+  return {
+    id: createId('n'),
+    goalId,
+    title,
+    body,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function blocker(title, fields = {}) {
   return {
     id: createId('b'),
     title,
-    description: '',
-    severity,
-    owner: owner || '',
-    createdAt: new Date().toISOString().slice(0, 10),
-    resolved,
+    description: fields.description ?? '',
+    severity: fields.severity ?? 'Medium',
+    owner: fields.owner ?? '',
+    status: fields.status ?? 'Open',
+    createdAt: fields.createdAt ?? new Date().toISOString().slice(0, 10),
+    resolvedAt: fields.resolvedAt ?? '',
+    goalId: fields.goalId ?? null,
   }
 }
 
-export function getSeedProjects() {
-  /** LCI (command interface) + LCE (engineering workspace) — single mission */
-  const lciLcePhases = [
-    phase('Planning', 0, false, true),
-    phase('Foundation', 1, false, true),
-    phase('UI', 2, true, false),
-    phase('Tooling', 3, false, false),
-    phase('Backend', 4, false, false),
-    phase('Integrations', 5, false, false),
-    phase('Testing', 6, false, false),
-    phase('Hardening', 7, false, false),
-    phase('Deployment', 8, false, false),
-  ]
-  const L = Object.fromEntries(lciLcePhases.map((p) => [p.name, p.id]))
 
-  const lciLce = {
-    id: 'proj_lci_lce',
-    name: 'LCI & LCE',
+function projectShell(base) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    archived: false,
+    progressPercent: 0,
+    phases: [],
+    goals: [],
+    tasks: [],
+    milestones: [],
+    brainstorm: [],
+    blockers: [],
+    ...base,
+  }
+}
+
+function legionOperator() {
+  const phases = [
+    ph('Planning', 0, 'Complete'),
+    ph('UI', 1, 'In Progress'),
+    ph('Backend', 2, 'Not Started'),
+    ph('Testing', 3, 'Not Started'),
+    ph('Deployment', 4, 'Not Started'),
+  ]
+  const P = Object.fromEntries(phases.map((p) => [p.name, p.id]))
+
+  const goals = [
+    goal('Ship operator command shell', {
+      description: 'Primary surfaces for live ops: KPI strip, incident tables, workspace scope.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P.UI,
+      targetDate: '2026-04-22',
+      tags: ['LCI', 'UX'],
+    }),
+    goal('Wire active release telemetry', {
+      description: 'Backend contracts + polling/stream for what operators see as “truth”.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P.Backend,
+      targetDate: '2026-05-05',
+      tags: ['API'],
+    }),
+    goal('TV / wall-display readiness', {
+      description: 'Typography, density presets, and motion tuned for 4K wall boards.',
+      status: 'Not Started',
+      priority: 'Medium',
+      phaseId: P.UI,
+      targetDate: '2026-05-12',
+      tags: ['TV'],
+    }),
+  ]
+  const [gShell, gTelemetry, gTv] = goals
+
+  const tasks = [
+    task('Build KPI cards for release health', gShell.id, {
+      isNextAction: true,
+      priority: 'High',
+      phaseId: P.UI,
+      dueDate: '2026-04-12',
+    }),
+    task('Clean incident queue tables', gShell.id, {
+      priority: 'High',
+      phaseId: P.UI,
+      dueDate: '2026-04-14',
+    }),
+    task('Workspace filtering + saved views', gShell.id, {
+      isNextAction: true,
+      phaseId: P.UI,
+      dueDate: '2026-04-18',
+    }),
+    task('Dark theme polish pass', gShell.id, {
+      completed: true,
+      phaseId: P.UI,
+    }),
+    task('Define release snapshot API contract', gTelemetry.id, {
+      phaseId: P.Backend,
+      dueDate: '2026-04-25',
+    }),
+    task('Stub integration against staging cluster', gTelemetry.id, {
+      phaseId: P.Backend,
+      dueDate: '2026-05-02',
+    }),
+    task('Document failure modes for stale data', gTelemetry.id, {
+      phaseId: P.Backend,
+    }),
+    task('4K type ramp + safe zones', gTv.id, {
+      phaseId: P.UI,
+      dueDate: '2026-05-08',
+    }),
+  ]
+
+  const milestones = [
+    milestone('MVP readiness review', gShell.id, {
+      dueDate: '2026-05-01',
+      status: 'In Progress',
+      phaseId: P.Testing,
+    }),
+    milestone('Production pilot window', gTelemetry.id, {
+      dueDate: '2026-05-15',
+      status: 'Not Started',
+      phaseId: P.Deployment,
+    }),
+  ]
+
+  const brainstorm = [
+    note('Card taxonomy', gShell.id, 'Health / deploy / incidents / queue depth — keep 4 families max.'),
+    note('Filter UX', gShell.id, 'Remember last workspace; quick reset chip on hero.'),
+    note('Telemetry', gTelemetry.id, 'Consider websocket for heartbeat; REST fallback required.'),
+    note('Wall mode', gTv.id, 'Hide chrome entirely; burn-in safe palette toggle.'),
+  ]
+
+  const blockers = [
+    blocker('Staging data parity with production', {
+      description: 'Need representative volume to validate table perf.',
+      severity: 'Medium',
+      owner: 'Platform',
+      goalId: gTelemetry.id,
+    }),
+  ]
+
+  return projectShell({
+    id: 'proj_legion_operator',
+    name: 'Legion Operator MVP',
     type: 'Product / Software',
-    owner: 'Ops & Engineering',
+    owner: 'Ops Lead',
     description:
-      'Legion Command Interface (LCI): command-center UI for live operations, workspace filtering, and TV-ready layouts. Legion Command Engineering (LCE): standards, repos, CI templates, observability, and delivery rhythm — one program.',
+      'Legion command interface for operators: live visibility, workspace filtering, and wall-ready layouts.',
     status: 'On Track',
     priority: 'High',
+    targetDate: '2026-05-15',
+    startDate: '2026-01-10',
+    currentPhaseId: P.UI,
+    accentColor: '#5eead4',
+    phases,
+    goals,
+    tasks,
+    milestones,
+    brainstorm,
+    blockers,
+  })
+}
+
+function legionEngineering() {
+  const phases = [
+    ph('Foundation', 0, 'Complete'),
+    ph('Tooling', 1, 'In Progress'),
+    ph('Integrations', 2, 'Not Started'),
+    ph('Hardening', 3, 'Not Started'),
+  ]
+  const P = Object.fromEntries(phases.map((p) => [p.name, p.id]))
+
+  const goals = [
+    goal('Unified engineering standards', {
+      description: 'Branching, reviews, and release notes everyone follows.',
+      status: 'On Track',
+      priority: 'Medium',
+      phaseId: P.Foundation,
+      targetDate: '2026-04-30',
+      tags: ['LCE', 'process'],
+    }),
+    goal('CI golden paths', {
+      description: 'Templates for services, libs, and LPMS-style frontends.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P.Tooling,
+      targetDate: '2026-05-18',
+      tags: ['CI'],
+    }),
+    goal('Observability baseline', {
+      description: 'Tracing + structured logs + SLO stubs for new services.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P.Integrations,
+      targetDate: '2026-06-05',
+      tags: ['o11y'],
+    }),
+  ]
+  const [gStd, gCi, gObs] = goals
+
+  const tasks = [
+    task('Document branching model', gStd.id, { completed: true, phaseId: P.Foundation }),
+    task('Publish PR checklist in repo template', gStd.id, { phaseId: P.Foundation, dueDate: '2026-04-28' }),
+    task('CI template for Node services', gCi.id, {
+      isNextAction: true,
+      phaseId: P.Tooling,
+      dueDate: '2026-04-16',
+    }),
+    task('CI template for Vite/React apps', gCi.id, { phaseId: P.Tooling, dueDate: '2026-04-20' }),
+    task('Runbook index + ownership tags', gCi.id, { phaseId: P.Tooling }),
+    task('OpenTelemetry bootstrap snippet', gObs.id, {
+      isNextAction: true,
+      phaseId: P.Integrations,
+      dueDate: '2026-05-01',
+    }),
+    task('Error budget policy draft', gObs.id, { phaseId: P.Hardening }),
+  ]
+
+  const milestones = [
+    milestone('Tooling freeze', gCi.id, { dueDate: '2026-05-15', status: 'On Track', phaseId: P.Tooling }),
+    milestone('Observability pilot service', gObs.id, { dueDate: '2026-05-30', status: 'Not Started', phaseId: P.Integrations }),
+  ]
+
+  const brainstorm = [
+    note('Templates', gCi.id, 'Start with LPMS as the reference Vite app in docs.'),
+    note('SLOs', gObs.id, 'Pick 3 golden signals before dashboards multiply.'),
+  ]
+
+  return projectShell({
+    id: 'proj_legion_engineering',
+    name: 'Legion Engineering Workspace',
+    type: 'Operations',
+    owner: 'Engineering',
+    description: 'Shared delivery discipline: CI, observability, and operational clarity for Legion software.',
+    status: 'In Progress',
+    priority: 'Medium',
     targetDate: '2026-06-30',
     startDate: '2025-11-01',
-    currentPhaseId: lciLcePhases[2].id,
-    progressPercent: 0,
-    accentColor: '#5eead4',
-    archived: false,
-    phases: lciLcePhases,
-    goals: [
-      goal('Finish operator UI shell', 'In Progress', 65, '2026-04-20', L.UI),
-      goal('Wire active release data', 'In Progress', 30, '2026-05-01', L.Backend),
-      goal('Stabilize layout for TV displays', 'Not Started', 0, '2026-05-10', L.UI),
-      goal('Unified PR checklist', 'On Track', 80, '2026-04-30', L.Tooling),
-      goal('Observability baseline', 'In Progress', 40, '2026-05-20', L.Integrations),
-    ],
-    tasks: [
-      task('Build KPI cards for release health', { isNextAction: true, priority: 'High', phaseId: L.UI }),
-      task('Clean tables for incident queue', { priority: 'High', phaseId: L.UI }),
-      task('Add workspace filtering', { isNextAction: true, phaseId: L.UI }),
-      task('API contract for release snapshot', { phaseId: L.Backend }),
-      task('Dark theme polish pass', { completed: true, phaseId: L.UI }),
-      task('Document branching model', { completed: true, phaseId: L.Foundation }),
-      task('CI template for new services', { isNextAction: true, phaseId: L.Tooling }),
-      task('Runbook index in LPMS', { phaseId: L.Tooling }),
-    ],
-    milestones: [
-      milestone('MVP readiness review', '2026-05-01', 'In Progress', L.Testing),
-      milestone('Production pilot', '2026-05-15', 'Not Started', L.Deployment),
-      milestone('Tooling freeze', '2026-05-15', 'On Track', L.Tooling),
-    ],
-    blockers: [blocker('Staging data parity with prod', 'Medium', 'Platform')],
-  }
+    currentPhaseId: P.Tooling,
+    accentColor: '#818cf8',
+    phases,
+    goals,
+    tasks,
+    milestones,
+    brainstorm,
+    blockers: [],
+  })
+}
 
-  const p3Phases = [
-    phase('Formation', 0, false, true),
-    phase('Banking', 1, false, true),
-    phase('Insurance', 2, true, false),
-    phase('Branding', 3, false, false),
-    phase('Operations', 4, false, false),
+function companySetup() {
+  const phases = [
+    ph('Formation', 0, 'Complete'),
+    ph('Banking', 1, 'Complete'),
+    ph('Insurance', 2, 'In Progress'),
+    ph('Branding', 3, 'Not Started'),
+    ph('Operations', 4, 'Not Started'),
   ]
-  const p3Ids = Object.fromEntries(p3Phases.map((p) => [p.name, p.id]))
+  const P = Object.fromEntries(phases.map((p) => [p.name, p.id]))
 
-  const companySetup = {
+  const goals = [
+    goal('Entity formation closed', {
+      description: 'LLC, EIN, and registered agent sorted.',
+      status: 'Complete',
+      priority: 'Critical',
+      phaseId: P.Formation,
+      targetDate: '2026-03-15',
+    }),
+    goal('Treasury online', {
+      description: 'Operating account + card + basic policies.',
+      status: 'On Track',
+      priority: 'High',
+      phaseId: P.Banking,
+      targetDate: '2026-04-10',
+    }),
+    goal('Risk transfer in place', {
+      description: 'GL + key rider coverage bound.',
+      status: 'In Progress',
+      priority: 'Critical',
+      phaseId: P.Insurance,
+      targetDate: '2026-04-28',
+    }),
+  ]
+  const [gForm, gBank, gIns] = goals
+
+  const tasks = [
+    task('LLC articles filed', gForm.id, { completed: true, phaseId: P.Formation }),
+    task('EIN received', gForm.id, { completed: true, phaseId: P.Formation }),
+    task('Operating account opened', gBank.id, { completed: true, phaseId: P.Banking }),
+    task('Obtain GL / liability quotes', gIns.id, {
+      isNextAction: true,
+      priority: 'Critical',
+      phaseId: P.Insurance,
+      dueDate: '2026-04-12',
+    }),
+    task('Website + email domain basics', gBank.id, { phaseId: P.Branding, dueDate: '2026-04-22' }),
+  ]
+
+  const milestones = [
+    milestone('LLC filed', gForm.id, { dueDate: '2026-03-01', status: 'Complete', phaseId: P.Formation }),
+    milestone('Bank live', gBank.id, { dueDate: '2026-03-20', status: 'Complete', phaseId: P.Banking }),
+    milestone('Insurance bound', gIns.id, { dueDate: '2026-04-28', status: 'Not Started', phaseId: P.Insurance }),
+  ]
+
+  const brainstorm = [
+    note('Carriers', gIns.id, 'Compare three quotes; watch cyber sub-limits.'),
+  ]
+
+  const blockers = [
+    blocker('Carrier clarification on coverage limits', {
+      severity: 'High',
+      owner: 'Legal',
+      goalId: gIns.id,
+    }),
+  ]
+
+  return projectShell({
     id: 'proj_company_setup',
     name: 'Company Setup',
     type: 'Company Setup',
     owner: 'Founder',
-    description: 'Entity formation through go-live operations checklist.',
+    description: 'Formation through banking, insurance, and launch-ready operations.',
     status: 'Needs Focus',
     priority: 'Critical',
     targetDate: '2026-04-30',
     startDate: '2026-02-01',
-    currentPhaseId: p3Phases[2].id,
-    progressPercent: 48,
+    currentPhaseId: P.Insurance,
     accentColor: '#fbbf24',
-    archived: false,
-    phases: p3Phases,
-    goals: [
-      goal('Business formation complete', 'In Progress', 70, '2026-04-15', p3Ids.Formation),
-      goal('Banking & treasury ready', 'On Track', 90, '2026-04-10', p3Ids.Banking),
-      goal('Insurance coverage in place', 'In Progress', 35, '2026-04-25', p3Ids.Insurance),
-    ],
-    tasks: [
-      task('LLC articles filed', { completed: true, phaseId: p3Ids.Formation }),
-      task('EIN received', { completed: true, phaseId: p3Ids.Formation }),
-      task('Open operating account', { completed: true, phaseId: p3Ids.Banking }),
-      task('Obtain GL / liability quotes', { isNextAction: true, priority: 'Critical', phaseId: p3Ids.Insurance }),
-      task('Website basics + email domain', { phaseId: p3Ids.Branding }),
-    ],
-    milestones: [
-      milestone('LLC filed', '2026-03-01', 'Complete', p3Ids.Formation),
-      milestone('EIN received', '2026-03-08', 'Complete', p3Ids.Formation),
-      milestone('Bank account opened', '2026-03-20', 'Complete', p3Ids.Banking),
-      milestone('Insurance bound', '2026-04-28', 'Not Started', p3Ids.Insurance),
-    ],
-    blockers: [
-      blocker('Waiting on carrier clarification for coverage limits', 'High', 'Legal', false),
-    ],
-  }
+    phases,
+    goals,
+    tasks,
+    milestones,
+    brainstorm,
+    blockers,
+  })
+}
 
-  const p4Phases = [
-    phase('Research', 0, false, true),
-    phase('Enrolled', 1, false, true),
-    phase('In Progress', 2, true, false),
-    phase('Practice', 3, false, false),
-    phase('Scheduled', 4, false, false),
-    phase('Passed', 5, false, false),
+function certifications() {
+  const phases = [
+    ph('Research', 0, 'Complete'),
+    ph('Enrolled', 1, 'Complete'),
+    ph('In Progress', 2, 'In Progress'),
+    ph('Practice', 3, 'Not Started'),
+    ph('Scheduled', 4, 'Not Started'),
+    ph('Passed', 5, 'Not Started'),
   ]
-  const p4Ids = Object.fromEntries(p4Phases.map((p) => [p.name, p.id]))
+  const P = Object.fromEntries(phases.map((p) => [p.name, p.id]))
 
-  const certs = {
+  const goals = [
+    goal('Complete coursework', {
+      description: 'All vendor modules + notes bank.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P['In Progress'],
+      targetDate: '2026-05-08',
+    }),
+    goal('Exam readiness', {
+      description: 'Practice tests above passing threshold twice in a row.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P.Practice,
+      targetDate: '2026-05-25',
+    }),
+    goal('Pass certification', {
+      description: 'Schedule, sit, and close loop with employer.',
+      status: 'Not Started',
+      priority: 'Critical',
+      phaseId: P.Passed,
+      targetDate: '2026-06-20',
+    }),
+  ]
+  const [gCourse, gReady, gPass] = goals
+
+  const tasks = [
+    task('Finish modules 4–6', gCourse.id, {
+      isNextAction: true,
+      priority: 'High',
+      phaseId: P['In Progress'],
+      dueDate: '2026-04-14',
+    }),
+    task('Build 100-flashcard deck', gCourse.id, { phaseId: P['In Progress'] }),
+    task('Schedule practice exams', gReady.id, { phaseId: P.Practice, dueDate: '2026-05-05' }),
+    task('Book exam slot', gPass.id, { phaseId: P.Scheduled, dueDate: '2026-05-18' }),
+  ]
+
+  const milestones = [
+    milestone('Modules complete', gCourse.id, { dueDate: '2026-05-10', status: 'In Progress', phaseId: P['In Progress'] }),
+    milestone('Exam day', gPass.id, { dueDate: '2026-06-15', status: 'Not Started', phaseId: P.Scheduled }),
+  ]
+
+  const brainstorm = [
+    note('Study cadence', gCourse.id, '90m deep blocks, 2x weekdays + Sunday morning.'),
+  ]
+
+  return projectShell({
     id: 'proj_certs',
     name: 'Certifications Roadmap',
     type: 'Certification / Learning',
     owner: 'You',
-    description: 'Structured path from enrollment through exam pass.',
+    description: 'Structured certification path from enrollment to pass.',
     status: 'On Track',
     priority: 'High',
     targetDate: '2026-07-01',
     startDate: '2026-01-15',
-    currentPhaseId: p4Phases[2].id,
-    progressPercent: 38,
+    currentPhaseId: P['In Progress'],
     accentColor: '#34d399',
-    archived: false,
-    phases: p4Phases,
-    goals: [
-      goal('Finish DDC modules', 'In Progress', 55, '2026-05-01', p4Ids['In Progress']),
-      goal('Networking deep dive', 'In Progress', 25, '2026-05-15', p4Ids.Practice),
-      goal('Pass certification exam', 'Not Started', 0, '2026-06-20', p4Ids.Passed),
-    ],
-    tasks: [
-      task('Complete module 4–6', { isNextAction: true, priority: 'High', phaseId: p4Ids['In Progress'] }),
-      task('Schedule practice exams', { phaseId: p4Ids.Practice }),
-      task('Book exam slot', { phaseId: p4Ids.Scheduled }),
-    ],
-    milestones: [
-      milestone('All modules complete', '2026-05-10', 'In Progress', p4Ids['In Progress']),
-      milestone('Exam date', '2026-06-15', 'Not Started', p4Ids.Scheduled),
-    ],
+    phases,
+    goals,
+    tasks,
+    milestones,
+    brainstorm,
     blockers: [],
-  }
+  })
+}
 
-  const p5Phases = [
-    phase('Discovery', 0, false, true),
-    phase('Draft', 1, true, false),
-    phase('Review', 2, false, false),
-    phase('Award', 3, false, false),
+function proposalSystem() {
+  const phases = [
+    ph('Discovery', 0, 'Complete'),
+    ph('Draft', 1, 'In Progress'),
+    ph('Review', 2, 'Not Started'),
+    ph('Award', 3, 'Not Started'),
   ]
-  const p5Ids = Object.fromEntries(p5Phases.map((p) => [p.name, p.id]))
+  const P = Object.fromEntries(phases.map((p) => [p.name, p.id]))
 
-  const proposal = {
+  const goals = [
+    goal('Composable section library', {
+      description: 'Reusable blocks with metadata for approvals.',
+      status: 'In Progress',
+      priority: 'Medium',
+      phaseId: P.Draft,
+      targetDate: '2026-05-10',
+    }),
+    goal('Client-ready exports', {
+      description: 'PDF + share link with version pinning.',
+      status: 'Not Started',
+      priority: 'Medium',
+      phaseId: P.Review,
+      targetDate: '2026-06-15',
+    }),
+  ]
+  const [gLib, gExport] = goals
+
+  const tasks = [
+    task('Define section schema', gLib.id, { completed: true, phaseId: P.Discovery }),
+    task('Editor UX for blocks', gLib.id, { isNextAction: true, phaseId: P.Draft, dueDate: '2026-04-20' }),
+    task('Version history stub', gLib.id, { phaseId: P.Draft }),
+    task('PDF layout grid', gExport.id, { phaseId: P.Review, dueDate: '2026-06-01' }),
+  ]
+
+  const milestones = [
+    milestone('Internal alpha', gLib.id, { dueDate: '2026-05-20', status: 'Not Started', phaseId: P.Review }),
+  ]
+
+  const brainstorm = [
+    note('Sections', gLib.id, 'Start with pricing, scope, assumptions, timeline, bios.'),
+  ]
+
+  const blockers = [
+    blocker('Legal review of boilerplate delayed', { severity: 'Medium', owner: 'Legal', goalId: gExport.id }),
+  ]
+
+  return projectShell({
     id: 'proj_proposal',
     name: 'Proposal System v1',
     type: 'Product / Software',
@@ -221,111 +525,91 @@ export function getSeedProjects() {
     priority: 'Medium',
     targetDate: '2026-08-01',
     startDate: '2026-03-01',
-    currentPhaseId: p5Phases[1].id,
-    progressPercent: 22,
+    currentPhaseId: P.Draft,
     accentColor: '#f472b6',
-    archived: false,
-    phases: p5Phases,
-    goals: [
-      goal('Section library v1', 'In Progress', 40, '2026-05-01', p5Ids.Draft),
-      goal('Export to PDF', 'Not Started', 0, '2026-06-01', p5Ids.Review),
-    ],
-    tasks: [
-      task('Define section schema', { completed: true, phaseId: p5Ids.Discovery }),
-      task('Editor UX for blocks', { isNextAction: true, phaseId: p5Ids.Draft }),
-      task('Version history stub', { phaseId: p5Ids.Draft }),
-    ],
-    milestones: [
-      milestone('Internal alpha', '2026-05-20', 'Not Started', p5Ids.Review),
-    ],
-    blockers: [
-      blocker('Legal review of boilerplate delayed', 'Medium', 'Legal', false),
-    ],
-  }
+    phases,
+    goals,
+    tasks,
+    milestones,
+    brainstorm,
+    blockers,
+  })
+}
 
-  const p6Phases = [
-    phase('Inventory', 0, false, true),
-    phase('Adopt', 1, true, false),
-    phase('Integrate', 2, false, false),
-    phase('Govern', 3, false, false),
+function softwareStack() {
+  const phases = [
+    ph('Inventory', 0, 'Complete'),
+    ph('Adopt', 1, 'In Progress'),
+    ph('Integrate', 2, 'Not Started'),
+    ph('Govern', 3, 'Not Started'),
   ]
-  const p6Ids = Object.fromEntries(p6Phases.map((p) => [p.name, p.id]))
+  const P = Object.fromEntries(phases.map((p) => [p.name, p.id]))
 
-  const stackRoadmap = {
+  const goals = [
+    goal('Document golden paths', {
+      description: 'What we build new services with by default.',
+      status: 'In Progress',
+      priority: 'High',
+      phaseId: P.Adopt,
+      targetDate: '2026-06-01',
+    }),
+    goal('Sunset legacy packages', {
+      description: 'Track debt and cutovers with owners.',
+      status: 'Not Started',
+      priority: 'Medium',
+      phaseId: P.Govern,
+      targetDate: '2026-09-30',
+    }),
+  ]
+  const [gGolden, gSunset] = goals
+
+  const tasks = [
+    task('Audit current dependencies', gGolden.id, { completed: true, phaseId: P.Inventory }),
+    task('Approve React + Node baseline', gGolden.id, {
+      isNextAction: true,
+      phaseId: P.Adopt,
+      dueDate: '2026-04-30',
+    }),
+    task('LPMS as internal pilot app', gGolden.id, { isNextAction: true, phaseId: P.Adopt, dueDate: '2026-05-05' }),
+    task('Deprecation policy draft', gSunset.id, { phaseId: P.Govern }),
+  ]
+
+  const milestones = [
+    milestone('Stack decision memo', gGolden.id, { dueDate: '2026-04-30', status: 'In Progress', phaseId: P.Adopt }),
+  ]
+
+  const brainstorm = [
+    note('Pilot criteria', gGolden.id, 'Must dogfood local-first + export story.'),
+  ]
+
+  return projectShell({
     id: 'proj_stack',
     name: 'Software Stack Roadmap',
     type: 'General',
     owner: 'CTO',
-    description: 'Canonical stack decisions and migration waves.',
+    description: 'Canonical stack choices and migration waves.',
     status: 'On Track',
     priority: 'High',
     targetDate: '2026-12-31',
     startDate: '2026-01-01',
-    currentPhaseId: p6Phases[1].id,
-    progressPercent: 33,
+    currentPhaseId: P.Adopt,
     accentColor: '#38bdf8',
-    archived: false,
-    phases: p6Phases,
-    goals: [
-      goal('Document golden paths', 'In Progress', 50, '2026-06-01', p6Ids.Adopt),
-      goal('Deprecate legacy packages', 'Not Started', 10, '2026-09-01', p6Ids.Govern),
-    ],
-    tasks: [
-      task('Audit current dependencies', { completed: true, phaseId: p6Ids.Inventory }),
-      task('Approve React + Node baseline', { isNextAction: true, phaseId: p6Ids.Adopt }),
-      task('LPMS as internal pilot app', { isNextAction: true, phaseId: p6Ids.Adopt }),
-    ],
-    milestones: [
-      milestone('Stack decision memo', '2026-04-30', 'In Progress', p6Ids.Adopt),
-    ],
+    phases,
+    goals,
+    tasks,
+    milestones,
+    brainstorm,
     blockers: [],
-  }
+  })
+}
 
-  const p7Phases = [
-    phase('Assessment', 0, false, true),
-    phase('Remediation', 1, true, false),
-    phase('Audit', 2, false, false),
-  ]
-  const p7Ids = Object.fromEntries(p7Phases.map((p) => [p.name, p.id]))
-
-  const licensing = {
-    id: 'proj_licensing',
-    name: 'Licensing & Compliance Tracker',
-    type: 'Licensing / Compliance',
-    owner: 'Compliance',
-    description: 'Track renewals, attestations, and audit artifacts.',
-    status: 'Needs Focus',
-    priority: 'High',
-    targetDate: '2026-05-01',
-    startDate: '2026-02-15',
-    currentPhaseId: p7Phases[1].id,
-    progressPercent: 60,
-    accentColor: '#a78bfa',
-    archived: false,
-    phases: p7Phases,
-    goals: [
-      goal('License inventory current', 'On Track', 85, '2026-04-20', p7Ids.Assessment),
-      goal('SOC2 evidence folder structure', 'In Progress', 45, '2026-05-01', p7Ids.Remediation),
-    ],
-    tasks: [
-      task('Export vendor list from finance', { completed: true, phaseId: p7Ids.Assessment }),
-      task('Map licenses to owners', { isNextAction: true, priority: 'High', phaseId: p7Ids.Remediation }),
-      task('Upload Q1 attestations', { phaseId: p7Ids.Audit }),
-    ],
-    milestones: [
-      milestone('Renewal calendar published', '2026-04-18', 'In Progress', p7Ids.Remediation),
-    ],
-    blockers: [
-      blocker('Missing signature on DPA for vendor X', 'Critical', 'Legal', false),
-    ],
-  }
-
+export function getSeedProjects() {
   return [
-    lciLce,
-    companySetup,
-    certs,
-    proposal,
-    stackRoadmap,
-    licensing,
+    legionOperator(),
+    legionEngineering(),
+    companySetup(),
+    certifications(),
+    proposalSystem(),
+    softwareStack(),
   ]
 }

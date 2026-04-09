@@ -7,6 +7,7 @@ import {
   useEffect,
 } from 'react'
 import { createId, emptyProject, recomputeProjectProgress } from '../data/model'
+import { migrateStoredState } from '../data/migration'
 import { loadState, persistState } from '../services/storage'
 import { getSeedProjects } from '../data/seedDemo'
 
@@ -76,12 +77,14 @@ export function AppStateProvider({ children }) {
 
   const importState = useCallback((json) => {
     const data = typeof json === 'string' ? JSON.parse(json) : json
-    if (!data.projects || !Array.isArray(data.projects)) throw new Error('Invalid backup')
-    setProjects(data.projects.map(recomputeProjectProgress))
-    if (data.activeProjectId && data.projects.some((p) => p.id === data.activeProjectId)) {
-      setActiveProjectId(data.activeProjectId)
+    const migrated = migrateStoredState(data)
+    if (!migrated?.projects || !Array.isArray(migrated.projects)) throw new Error('Invalid backup')
+    const next = migrated.projects.map((p) => recomputeProjectProgress(p))
+    setProjects(next)
+    if (migrated.activeProjectId && next.some((p) => p.id === migrated.activeProjectId)) {
+      setActiveProjectId(migrated.activeProjectId)
     } else {
-      setActiveProjectId(data.projects[0]?.id || null)
+      setActiveProjectId(next[0]?.id || null)
     }
   }, [])
 

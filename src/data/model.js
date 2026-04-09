@@ -1,5 +1,8 @@
 /** @typedef {import('./modelTypes').Project} Project */
 
+import { SCHEMA_VERSION } from './constants'
+import { goalProgressPercent, projectProgressPercent } from '../utils/deriveStats'
+
 export function createId(prefix = 'id') {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
 }
@@ -8,6 +11,7 @@ export function emptyProject(overrides = {}) {
   const id = createId('proj')
   return {
     id,
+    schemaVersion: SCHEMA_VERSION,
     name: 'New project',
     type: 'General',
     owner: '',
@@ -20,19 +24,31 @@ export function emptyProject(overrides = {}) {
     progressPercent: 0,
     accentColor: '#5eead4',
     archived: false,
-    goals: [],
     phases: [],
+    goals: [],
     tasks: [],
     milestones: [],
+    brainstorm: [],
     blockers: [],
     ...overrides,
   }
 }
 
+/**
+ * Recomputes cached project.progressPercent from tasks + milestones.
+ */
 export function recomputeProjectProgress(project) {
-  const tasks = project.tasks || []
-  const completed = tasks.filter((t) => t.completed).length
-  const total = tasks.length
-  const pct = total ? Math.round((completed / total) * 100) : project.progressPercent || 0
+  const pct = projectProgressPercent(project)
   return { ...project, progressPercent: pct }
+}
+
+/**
+ * Returns goals with optional derived progress attached (does not mutate project).
+ */
+export function goalsWithDerivedProgress(project) {
+  const goals = project.goals || []
+  return goals.map((g) => ({
+    ...g,
+    _derivedProgress: goalProgressPercent(project, g.id),
+  }))
 }

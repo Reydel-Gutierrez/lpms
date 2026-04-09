@@ -19,6 +19,7 @@ export function ProjectRail() {
         {visible.map((p) => {
           const { completed, total } = taskStats(p)
           const openBlockers = blockerCount(p)
+          const goalN = (p.goals || []).length
           return (
             <button
               key={p.id}
@@ -39,7 +40,7 @@ export function ProjectRail() {
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                  {completed}/{total} tasks
+                  {goalN} goals · {completed}/{total} tasks
                   {openBlockers > 0 ? ` · ${openBlockers} blocker${openBlockers > 1 ? 's' : ''}` : ''}
                 </div>
               </div>

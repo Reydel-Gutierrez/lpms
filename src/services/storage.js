@@ -1,10 +1,11 @@
-import { STORAGE_KEY } from '../data/constants'
+import { STORAGE_KEY, STORAGE_KEY_V1 } from '../data/constants'
 import { getSeedProjects } from '../data/seedDemo'
 import { recomputeProjectProgress } from '../data/model'
+import { migrateStoredState } from '../data/migration'
 
-function loadRaw() {
+function loadRaw(key) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     return JSON.parse(raw)
   } catch {
@@ -20,22 +21,47 @@ function saveRaw(state) {
   }
 }
 
+function normalizeLoadedState(raw) {
+  const migrated = migrateStoredState(raw)
+  if (!migrated?.projects?.length) return null
+  return {
+    projects: migrated.projects.map((p) => recomputeProjectProgress(p)),
+    activeProjectId: migrated.activeProjectId || migrated.projects[0].id,
+    presentationMode: !!migrated.presentationMode,
+  }
+}
+
 export function loadState() {
-  const raw = loadRaw()
-  if (raw && Array.isArray(raw.projects) && raw.projects.length) {
-    return {
-      projects: raw.projects.map((p) => recomputeProjectProgress(p)),
-      activeProjectId: raw.activeProjectId || raw.projects[0].id,
-      presentationMode: !!raw.presentationMode,
+  const v2 = loadRaw(STORAGE_KEY)
+  if (v2?.projects?.length) {
+    const n = normalizeLoadedState(v2)
+    if (n) return n
+  }
+
+  const v1 = loadRaw(STORAGE_KEY_V1)
+  if (v1?.projects?.length) {
+    const n = normalizeLoadedState(v1)
+    if (n) {
+      saveRaw({
+        projects: n.projects.map((p) => recomputeProjectProgress(p)),
+        activeProjectId: n.activeProjectId,
+        presentationMode: n.presentationMode,
+      })
+      return n
     }
   }
-  const projects = getSeedProjects().map(recomputeProjectProgress)
+
+  const projects = getSeedProjects().map((p) => recomputeProjectProgress(p))
   const state = {
     projects,
     activeProjectId: projects[0]?.id || null,
     presentationMode: false,
   }
-  saveRaw(state)
+  saveRaw({
+    projects: state.projects,
+    activeProjectId: state.activeProjectId,
+    presentationMode: state.presentationMode,
+  })
   return state
 }
 
