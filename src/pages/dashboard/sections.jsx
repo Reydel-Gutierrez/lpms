@@ -2,6 +2,21 @@ import { StatusChip } from '../../components/ui/StatusChip'
 import { PriorityChip } from '../../components/ui/PriorityChip'
 import { STATUSES, PRIORITIES } from '../../data/constants'
 import { formatShortDate, daysUntil } from '../../utils/dates'
+
+function timelineKindLabel(kind) {
+  switch (kind) {
+    case 'task':
+      return 'Task'
+    case 'milestone':
+      return 'Milestone'
+    case 'goal':
+      return 'Goal'
+    case 'target':
+      return 'Project target'
+    default:
+      return 'Item'
+  }
+}
 import {
   currentPhaseName,
   phaseName,
@@ -31,13 +46,11 @@ export function MissionHero({ project, stats, presentation }) {
         <div>
           <p className="mission-hero-eyebrow">Active mission</p>
           <h1 className="mission-hero-title">{project.name}</h1>
-          <p className="mission-hero-desc">{project.description || 'No description.'}</p>
+          <p className="mission-hero-desc">{project.description || 'No description yet.'}</p>
           <div className="mission-hero-chips">
             <StatusChip status={project.status} />
             <PriorityChip priority={project.priority} />
-            <span className="chip chip-status-not-started" style={{ textTransform: 'none', letterSpacing: '0.05em' }}>
-              {project.type}
-            </span>
+            <span className="chip chip-meta">{project.type}</span>
           </div>
         </div>
         <div className="mission-hero-ring">
@@ -113,6 +126,12 @@ export function GoalsExecutionGrid({ project, onOpenGoal, onAddGoal, presentatio
         )}
       </div>
       <div className={`goals-grid${presentation ? ' goals-grid--pres' : ''}`}>
+        {shown.length === 0 && (
+          <div className="dash-empty goals-grid-empty">
+            <p className="dash-empty-title">No goals defined</p>
+            <p className="dash-empty-hint">Goals anchor tasks, milestones, and notes — add one to drive execution.</p>
+          </div>
+        )}
         {shown.map((g) => {
           const pct = goalProgressPercent(project, g.id)
           const tks = tasksForGoal(project, g.id)
@@ -129,7 +148,9 @@ export function GoalsExecutionGrid({ project, onOpenGoal, onAddGoal, presentatio
             >
               <div className="goal-exec-card-top">
                 <h3 className="goal-exec-card-title">{g.title}</h3>
-                <StatusChip status={g.status} />
+                <div className="goal-exec-card-chips">
+                  <StatusChip status={g.status} />
+                </div>
               </div>
               {g.description && <p className="goal-exec-card-desc">{g.description}</p>}
               <div className="goal-exec-card-meta">
@@ -200,7 +221,12 @@ export function DoNextPanel({ project, updateProject, filters, presentation }) {
         )}
       </div>
       <div className="donext-list">
-        {list.length === 0 && <p className="muted pad">Nothing in queue — add tasks under goals.</p>}
+        {list.length === 0 && (
+          <div className="dash-empty dash-empty--compact">
+            <p className="dash-empty-title">Queue clear</p>
+            <p className="dash-empty-hint">Add tasks under goals or mark items as next actions.</p>
+          </div>
+        )}
         {list.slice(0, presentation ? 10 : 16).map((t) => {
           const g = (project.goals || []).find((x) => x.id === t.goalId)
           return (
@@ -208,8 +234,11 @@ export function DoNextPanel({ project, updateProject, filters, presentation }) {
               <label className="donext-check">
                 <input
                   type="checkbox"
+                  className="donext-checkbox"
                   checked={t.completed}
-                  onChange={(e) => updateProject(project.id, (proj) => M.updateTask(proj, t.id, { completed: e.target.checked }))}
+                  onChange={(e) =>
+                    updateProject(project.id, (proj) => M.updateTask(proj, t.id, { completed: e.target.checked }))
+                  }
                 />
               </label>
               <div className="donext-main">
@@ -217,12 +246,14 @@ export function DoNextPanel({ project, updateProject, filters, presentation }) {
                   {t.title}
                   {t.isNextAction && <span className="donext-flag">NEXT</span>}
                 </div>
-                <div className="donext-sub muted small">
-                  {g?.title || 'Goal'}
-                  {t.dueDate && ` · ${formatShortDate(t.dueDate)}`}
+                <div className="donext-sub">
+                  <span className="donext-goal">{g?.title || 'Unassigned goal'}</span>
+                  {t.dueDate && <span className="donext-due">{formatShortDate(t.dueDate)}</span>}
                 </div>
               </div>
-              <PriorityChip priority={t.priority} />
+              <div className="donext-priority">
+                <PriorityChip priority={t.priority} />
+              </div>
             </div>
           )
         })}
@@ -231,46 +262,98 @@ export function DoNextPanel({ project, updateProject, filters, presentation }) {
   )
 }
 
+const URGENCY_BUCKET_LIST = [
+  {
+    key: 'overdue',
+    label: 'Overdue',
+    subtitle: 'Past due — needs attention',
+    tone: 'overdue',
+  },
+  {
+    key: 'today',
+    label: 'Today',
+    subtitle: 'Due before midnight',
+    tone: 'today',
+  },
+  {
+    key: 'week',
+    label: 'This week',
+    subtitle: 'Next seven days',
+    tone: 'week',
+  },
+  {
+    key: 'later',
+    label: 'Later',
+    subtitle: 'Scheduled ahead',
+    tone: 'later',
+  },
+]
+
+const URGENCY_BUCKET_META = Object.fromEntries(URGENCY_BUCKET_LIST.map((b) => [b.key, b]))
+
 export function UpcomingUrgencyPanel({ project, presentation }) {
   const groups = groupTimelineByUrgency(project)
-  const labels = {
-    overdue: 'Overdue',
-    today: 'Today',
-    week: 'This week',
-    later: 'Later',
-  }
-
-  const renderItem = (it) => (
-    <div key={`${it.kind}-${it.id}`} className="urgency-item">
-      <div className="urgency-item-date">{formatShortDate(it.date)}</div>
-      <div className="urgency-item-body">
-        <div className="urgency-item-title">{it.title}</div>
-        <div className="urgency-item-meta muted small">
-          {it.kind}
-          {it.goalTitle && ` · ${it.goalTitle}`}
-        </div>
-      </div>
-      {it.status && <StatusChip status={it.status} />}
-    </div>
-  )
-
-  const keys = presentation ? ['overdue', 'today', 'week'] : ['overdue', 'today', 'week', 'later']
+  const keys = ['overdue', 'today', 'week', 'later']
 
   return (
-    <section className={`dash-section${presentation ? ' dash-section--pres' : ''}`}>
-      <div className="dash-section-head">
-        <h2 className="dash-section-title">Upcoming &amp; at risk</h2>
+    <section className={`dash-section dash-section--upcoming${presentation ? ' dash-section--pres' : ''}`}>
+      <div className="dash-section-head dash-section-head--stack">
+        <div>
+          <h2 className="dash-section-title">Upcoming &amp; at risk</h2>
+          <p className="dash-section-subtitle">
+            Deadlines and targets by time window — scan from a distance, drill in on Timeline.
+          </p>
+        </div>
       </div>
-      <div className="urgency-grid">
-        {keys.map((k) => (
-          <div key={k} className="urgency-column">
-            <h4 className="urgency-column-title">{labels[k]}</h4>
-            <div className="urgency-column-body">
-              {(groups[k] || []).slice(0, presentation ? 4 : 8).map(renderItem)}
-              {(groups[k] || []).length === 0 && <p className="muted small">Clear</p>}
+
+      <div className="urgency-buckets">
+        {keys.map((key) => {
+          const meta = URGENCY_BUCKET_META[key]
+          const items = (groups[key] || []).slice(0, presentation ? 10 : 14)
+          const total = (groups[key] || []).length
+
+          return (
+            <div key={key} className={`urgency-bucket urgency-bucket--${meta?.tone || 'later'}`}>
+              <header className="urgency-bucket-head">
+                <div className="urgency-bucket-titles">
+                  <h3 className="urgency-bucket-label">{meta?.label}</h3>
+                  <p className="urgency-bucket-sub">{meta?.subtitle}</p>
+                </div>
+                <span className="urgency-bucket-count" aria-label={`${total} items`}>
+                  {total}
+                </span>
+              </header>
+
+              <div className="urgency-bucket-body">
+                {items.length === 0 ? (
+                  <div className="urgency-bucket-empty">
+                    <span className="urgency-bucket-empty-line" aria-hidden />
+                    <p>Nothing in this window</p>
+                  </div>
+                ) : (
+                  items.map((it) => (
+                    <article key={`${it.kind}-${it.id}`} className="urgency-card">
+                      <div className="urgency-card-top">
+                        <time className="urgency-card-date" dateTime={it.date}>
+                          {formatShortDate(it.date)}
+                        </time>
+                        <span className="urgency-type-pill">{timelineKindLabel(it.kind)}</span>
+                      </div>
+                      <h4 className="urgency-card-title">{it.title}</h4>
+                      {it.goalTitle && <p className="urgency-card-goal">{it.goalTitle}</p>}
+                      <div className="urgency-card-foot">
+                        {it.status && <StatusChip status={it.status} />}
+                        {it.kind === 'task' && it.priority && (
+                          <PriorityChip priority={it.priority} />
+                        )}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
@@ -290,7 +373,12 @@ export function BlockersStrip({ project, updateProject, onEditBlocker, presentat
         )}
       </div>
       <div className="blockers-strip">
-        {list.length === 0 && <p className="muted">No open blockers.</p>}
+        {list.length === 0 && (
+          <div className="dash-empty dash-empty--compact">
+            <p className="dash-empty-title">No open blockers</p>
+            <p className="dash-empty-hint">Surface risks here when execution stalls.</p>
+          </div>
+        )}
         {list.map((b) => {
           const g = b.goalId ? project.goals?.find((x) => x.id === b.goalId) : null
           return (

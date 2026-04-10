@@ -9,7 +9,7 @@ import {
 import { createId, emptyProject, recomputeProjectProgress } from '../data/model'
 import { migrateStoredState } from '../data/migration'
 import { loadState, persistState } from '../services/storage'
-import { getSeedProjects } from '../data/seedDemo'
+import { getSeedProjects, DEFAULT_SEED_ACTIVE_PROJECT_ID } from '../data/seedDemo'
 
 const AppStateContext = createContext(null)
 
@@ -72,7 +72,9 @@ export function AppStateProvider({ children }) {
   const resetDemoData = useCallback(() => {
     const seeded = getSeedProjects().map(recomputeProjectProgress)
     setProjects(seeded)
-    setActiveProjectId(seeded[0]?.id || null)
+    setActiveProjectId(
+      seeded.find((p) => p.id === DEFAULT_SEED_ACTIVE_PROJECT_ID)?.id || seeded[0]?.id || null
+    )
   }, [])
 
   const importState = useCallback((json) => {

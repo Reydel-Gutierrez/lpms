@@ -1,5 +1,5 @@
 import { STORAGE_KEY, STORAGE_KEY_V1 } from '../data/constants'
-import { getSeedProjects } from '../data/seedDemo'
+import { getSeedProjects, DEFAULT_SEED_ACTIVE_PROJECT_ID } from '../data/seedDemo'
 import { recomputeProjectProgress } from '../data/model'
 import { migrateStoredState } from '../data/migration'
 
@@ -52,9 +52,11 @@ export function loadState() {
   }
 
   const projects = getSeedProjects().map((p) => recomputeProjectProgress(p))
+  const preferred =
+    projects.find((p) => p.id === DEFAULT_SEED_ACTIVE_PROJECT_ID)?.id || projects[0]?.id || null
   const state = {
     projects,
-    activeProjectId: projects[0]?.id || null,
+    activeProjectId: preferred,
     presentationMode: false,
   }
   saveRaw({

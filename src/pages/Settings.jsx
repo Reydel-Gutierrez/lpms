@@ -65,20 +65,20 @@ export function Settings() {
         </div>
         <div className="lpms-card-body">
           <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            Reset replaces all local data with the built-in demo workspaces. Your current data will be lost unless you exported it.
+            Reset replaces all local data with the built-in starter workspaces. Your current data will be lost unless you exported it.
           </p>
           <button
             type="button"
             className="lpms-btn danger"
             onClick={() => {
-              if (window.confirm('Reset to demo data? Current local data will be replaced.')) {
+              if (window.confirm('Reset to starter workspaces? Current local data will be replaced.')) {
                 resetDemoData()
-                setMsg('Demo data restored.')
+                setMsg('Starter workspaces restored.')
                 setTimeout(() => setMsg(null), 3000)
               }
             }}
           >
-            Reset to demo data
+            Reset to starter workspaces
           </button>
         </div>
       </div>

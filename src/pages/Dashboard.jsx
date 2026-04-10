@@ -91,9 +91,11 @@ export function Dashboard() {
           )}
         </div>
         <div className="dashboard-col dashboard-col--side">
-          <DoNextPanel project={p} updateProject={updateProject} filters={filters} presentation={pres} />
-          <UpcomingUrgencyPanel project={p} presentation={pres} />
           <BlockersStrip project={p} updateProject={updateProject} onEditBlocker={setBlockerModal} presentation={pres} />
+          <DoNextPanel project={p} updateProject={updateProject} filters={filters} presentation={pres} />
+        </div>
+        <div className="dashboard-span-full">
+          <UpcomingUrgencyPanel project={p} presentation={pres} />
         </div>
       </div>
 
